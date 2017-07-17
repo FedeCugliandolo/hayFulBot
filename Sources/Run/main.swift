@@ -20,6 +20,9 @@ let config = try Config()
 try config.setup()
 
 let drop = try Droplet(config)
-try drop.setup()
+
+let token = drop.config["app", "secret"]?.string ?? ""
+try drop.setup(token)
+
 
 try drop.run()
