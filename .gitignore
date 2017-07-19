@@ -2,7 +2,7 @@
 # Created by https://www.gitignore.io/api/vapor
 
 ### Vapor ###
-Config/secrets
+Config/
 
 ### Vapor Patch ###
 Packages
