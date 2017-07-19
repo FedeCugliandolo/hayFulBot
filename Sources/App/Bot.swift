@@ -14,9 +14,10 @@ public class Bot {
     var message : String
     var user : User
     var chatID : String
-    var callBackQuery : String
+    var callBackQueryText : String
     var callBackMessageID : String
     var callBackChatID : String
+    var callBackQueryID : String
 
     public init(token myToken:String, droplet drop:Droplet) {
         droplet = drop
@@ -24,10 +25,11 @@ public class Bot {
         
         message = ""
         chatID = ""
-        callBackQuery = ""
+        callBackQueryText = ""
         callBackChatID = ""
         callBackMessageID = ""
         user = User()
+        callBackQueryID = ""
     }
     
 
@@ -36,20 +38,18 @@ public class Bot {
         message = (request.data["message", "text"]?.string ?? "").lowercased()
         user = getUser(request)
         chatID = request.data["message", "chat", "id"]?.string ?? ""
-        callBackQuery = request.data["callback_query","message", "text"]?.string ?? ""
+        callBackQueryText = request.data["callback_query","message", "text"]?.string ?? ""
         callBackMessageID = request.data["callback_query","message","message_id"]?.string ?? ""
         callBackChatID = request.data["callback_query","message","chat","id"]?.string ?? ""
+        callBackQueryID = request.data["callback_query","id"]?.string ?? ""
         
-        if !callBackQuery.isEmpty {
-            players.add(player: getCallBackUser(request))
-
-            //                return try JSON(node: [
-            //                    "method": "sendMessage",
-            //                    "chat_id": self.chatID,
-            //                    "text": "\(self.user.firstName), tené paciencia que ya llega la lista 2.0 ⚽️. #FPF",
-            //                    ])
-
-            return try showList()
+        if !callBackQueryText.isEmpty {
+            let p =  getCallBackUser(request)
+            if players.add(player: p) {
+                return try showList(nil)
+            } else {
+                return try callbackAnswer(answer: "\(p.firstName), ya estás anotado 🤙🏻")
+            }
         
         } else {
             
@@ -72,28 +72,24 @@ public class Bot {
                     ])
                 
             case "/lista" , "/lista@hayfulbot":
-                return try showList()
+                return try showList(nil)
                 
             case "/nuevalista":
                 return try newList()
             
             case "/mebajo":
-                players.remove(player: getUser(request))
-                return try showList()
+                let p = getUser(request)
+                if players.remove(player: p) {
+                    return try showList("‼️ Se bajó \(p.completeName())")
+                } else {
+                    return try showList("🤦🏻‍♂️ No estás anotado, \(p.firstName)\n¡Anotate! 👇🏻")
+                }
                 
             case _ where message.lowercased().contains("/canchade"):
                 if let max = Int(message.lowercased().replacingOccurrences(of: "/canchade", with: "").trim()) {
                     players.maxPlayers = max * 2
                 }
-                self.droplet.post(self.token) { request in
-                    return try self.showList()
-                }
-                
-                return try JSON(node: [
-                    "method": "sendMessage",
-                    "chat_id": chatID,
-                    "text": "Ahora jugamos \(players.maxPlayers)",
-                    ])
+                return try self.showList("Hasta \(players.maxPlayers) titulares")
                 
                 case "/golazo":
                     return try JSON(node: [
@@ -118,9 +114,9 @@ public class Bot {
         let j4 = User(id: "4", firstName: "Jugador", lastName: "4", alias: "j4")
         let j5 = User(id: "5", firstName: "Jugador", lastName: "5", alias: "j5")
         let j6 = User(id: "6", firstName: "Jugador", lastName: "6", alias: "j6")
-        let j7 = User(id: "7", firstName: "Jugador", lastName: "7", alias: "j7")
-        players = Players(list: [j1, j2, j3, j4, j5, j6, j7], maxPlayers: 10)
-        return try showList()
+//        let j7 = User(id: "7", firstName: "Jugador", lastName: "7", alias: "j7")
+        players = Players(list: [j1, j2, j3, j4, j5, j6], maxPlayers: 6)
+        return try showList(nil)
     }
     
     func getUser (_ request:Request) -> User {
@@ -139,22 +135,24 @@ public class Bot {
         return u
     }
     
-    var players = Players(list: [], maxPlayers: 10)
+    var players = Players(list: [], maxPlayers: 6)
     
-    func showList() throws -> JSON {
-        let title = players.list.count > 0 ? "Para este jueves somos:" : "Anótensennn para jugar"
-        let messageComplete = title + players.show()
+    func showList(_ extra:String?) throws -> JSON {
+        let title = players.list.count > 0 ? "Para este jueves somos *\(players.list.count)*" : "Anótensennn para jugar"
+        let extraMessage = "\n\n*\(extra ?? "")*"
+        let messageComplete = title + players.show() + extraMessage
         
         if !message.isEmpty {
         return try JSON(node: [
             "method": "sendMessage",
             "chat_id": chatID,
             "text": messageComplete,
+            "parse_mode": "Markdown",
             "reply_markup": try JSON(node: [
                 "inline_keyboard": try JSON (node: [
                     try JSON (node: [
                         try JSON (node: [
-                            "text": "Juego! ⚽️",
+                            "text": "⚽️ ¡Juego!",
                             "callback_data": "juego"
                             ]),
                         ])
@@ -168,18 +166,29 @@ public class Bot {
                 "chat_id": self.callBackChatID,
                 "message_id": self.callBackMessageID,
                 "text": messageComplete,
+                "parse_mode": "Markdown",
                 "reply_markup": try JSON(node: [
                     "inline_keyboard": try JSON (node: [
                         try JSON (node: [
                             try JSON (node: [
-                                "text": "Juego! ⚽️",
+                                "text": "⚽️ ¡Juego!",
                                 "callback_data": "juego"
                                 ]),
                             ])
                         ])
                     ]),
                 ])
+        
         }
+    }
+    
+    func callbackAnswer(answer:String) throws -> JSON {
+        return try JSON(node: [
+            "method": "answerCallbackQuery",
+            "callback_query_id": callBackQueryID,
+            "text": answer,
+            "show_alert": true
+            ])
     }
 }
 
@@ -188,27 +197,26 @@ struct Players {
     var list : [User]
     var maxPlayers : Int
 
-    mutating func add(player:User) {
+    mutating func add(player:User) -> Bool {
         if !list.contains(where: { $0.id == player.id }) {
             list.append(player)
-        } else {
-            // TODO: mensaje para el que se re-anota
-            print("Ya está en la lista")
-        }
+            return true
+        } else { return false }
     }
     
-    mutating func remove(player:User) {
+    mutating func remove(player:User) -> Bool {
         if list.contains(where: { $0.id == player.id }),
             let idx = list.index(where: { $0.id == player.id }) {
             list.remove(at: idx)
-        }
+            return true
+        } else { return false }
     }
     
     func show() -> String {
         var listMessage = "\n"
         for (index,player) in list.enumerated() {
             if (index + 1) == self.maxPlayers + 1 {
-                listMessage.append("\n\nComen banco:\n")
+                listMessage.append("\n\n_Comen banco:_ \n")
             }
             listMessage.append("\n" + " \(index + 1). " + player.firstName + " " + player.lastName)
         }
@@ -221,4 +229,6 @@ struct User {
     var firstName : String = ""
     var lastName : String = ""
     var alias:String = ""
+    
+    public func completeName() -> String { return "\(firstName) " + " \(lastName)" }
 }
