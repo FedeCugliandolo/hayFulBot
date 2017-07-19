@@ -22,7 +22,8 @@ try config.setup()
 let drop = try Droplet(config)
 
 let token = drop.config["app", "secret"]?.string ?? ""
-try drop.setup(token)
+let bot = Bot(token: token, droplet: drop)
+try drop.setup(bot)
 
 
 try drop.run()
