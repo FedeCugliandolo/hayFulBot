@@ -31,7 +31,7 @@ public class Bot {
     
     public func processMessage(req request:Request) throws -> JSON {
         
-        message = (request.data["message", "text"]?.string ?? "").lowercased()
+        message = request.data["message", "text"]?.string ?? ""
         user = getUser(request)
         chatID = request.data["message", "chat", "id"]?.string ?? ""
         
@@ -112,7 +112,7 @@ public class Bot {
                     ])
                 
             case _ where message.lowercased().hasPrefix("/juega"):
-                let playersArray = message.lowercased().replacingOccurrences(of: "/juega", with: "").trim().commaSeparatedArray()
+                let playersArray = message.replacingOccurrences(of: "/juega", with: "", options: .caseInsensitive, range: message.range(of: message)).trim().commaSeparatedArray()
                 for p in playersArray {
                     let newPlayer = User(id: "falopa", firstName: p, lastName: "(invitado)", alias: "p")
                     players.addGuest(player: newPlayer)
