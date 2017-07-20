@@ -42,7 +42,6 @@ public class Bot {
         callBackQueryID = request.data["callback_query","id"]?.string ?? ""
         callBackQueryData = request.data["callback_query","data"]?.string ?? ""
         callBackQueryDataType = callBackQueryData == "cancel" ? CallbackType.Cancel : callBackQueryData.lowercased().contains("baja") ? CallbackType.Baja : CallbackType.Juego
-
         
         if !callBackQueryText.isEmpty { // callback Query
             
@@ -111,20 +110,26 @@ public class Bot {
                     "disable_notification": true,
                     ])
                 
-            case _ where message.lowercased().hasPrefix("/juega"):
-                let playersArray = message.replacingOccurrences(of: "/juega", with: "", options: .caseInsensitive, range: message.range(of: message)).trim().commaSeparatedArray()
-                for p in playersArray {
-                    let newPlayer = User(id: "falopa", firstName: p, lastName: "(invitado)", alias: "p")
-                    players.addGuest(player: newPlayer)
-                }
+            case _ where message.lowercased().hasPrefix("/juega "):
+                let playersArray = message.replacingOccurrences(of: "/juega ", with: "", options: .caseInsensitive, range: message.range(of: message)).trim().commaSeparatedArray()
+                if playersArray.count > 0 {
+                    for p in playersArray {
+                        let newPlayer = User(id: "falopa", firstName: p, lastName: "(invitado por \(getUser(request).firstName))", alias: "p")
+                        players.addGuest(player: newPlayer)
+                    }
+                } else { return try showList("\(getUser(request).firstName) NO estás anotando a nadie 🤔") }
                 return try showList("Gracias \(getUser(request).firstName) por agregar jugadores 🙌🏻")
                 
             case "/baja":
                 return try showBajaKeyboard()
             
             default:
-                return try JSON(node: [
-                    "message": "Está vacío"])
+                if message.hasPrefix("/") {
+                    return try showList("El comando *\(message)* no existe...")
+                } else {
+                    return try JSON(node: [
+                        "message": "Está vacío"])
+                }
             }
         }
     }
