@@ -175,7 +175,7 @@ public class Bot {
     }
     
     func processCaptains() throws -> JSON {
-        if setCapitanes()  {
+        if setCapitanes() || players.capitanes.count > 0  {
             return try showList("\(user.firstName), los capitanes son:\n" + players.showCaptains())
         } else {
             return try showList("\(user.firstName), falta completar la lista de titulares para sortear *_capitanes_*")
