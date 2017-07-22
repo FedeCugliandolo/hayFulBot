@@ -13,8 +13,7 @@ public class Bot {
     var token: String
     var message = ""
     var user = User()
-    var chatID = ""
-    var Capitanes = [Captain()]
+    var chatID  = ""
     
     // callback TODO: struct for callbacks?
     var callBackQueryText = ""
@@ -43,21 +42,53 @@ public class Bot {
         callBackChatID = request.data["callback_query","message","chat","id"]?.string ?? ""
         callBackQueryID = request.data["callback_query","id"]?.string ?? ""
         callBackQueryData = request.data["callback_query","data"]?.string ?? ""
-        callBackQueryDataType = callBackQueryData == "cancel" ? CallbackType.Cancel : callBackQueryData.lowercased().contains("baja") ? CallbackType.Baja : CallbackType.Juego
+        // callBackQueryDataType = callBackQueryData == "cancel" ? CallbackType.Cancel : callBackQueryData.lowercased().contains("baja") ? CallbackType.Baja : CallbackType.Juego
+        
+        switch callBackQueryData {
+        
+        case _ where callBackQueryData.contains(CallbackType.Baja.rawValue):
+            callBackQueryDataType = .Baja
+            
+        case _ where callBackQueryData.contains(CallbackType.Cancel.rawValue):
+            callBackQueryDataType = .Cancel
+            
+        case _ where callBackQueryData.contains(CallbackType.Cancha.rawValue):
+            callBackQueryDataType = .Cancha
+            
+        case _ where callBackQueryData.contains(CallbackType.Capitanes.rawValue):
+            callBackQueryDataType = .Capitanes
+            
+        default:
+            callBackQueryDataType = .Juego
+        }
         
         if !callBackQueryText.isEmpty { // callback Query
             
             switch callBackQueryDataType {
             
             case .Baja:
-                let userData = callBackQueryData.commaSeparatedArray()
+                let userData = callBackQueryData.commaSeparatedArray() // 0.baja , 1.ID, 2.name
                 let pID = players.list.filter { $0.id == userData[1] }
                 let pCompleteName = players.list.filter { $0.completeName() == userData[2] }
-                return try removePlayer(pID.count == 1 ? pID[0] : pCompleteName[0], pID.count > 1)
+                if pID.count == 1 || pCompleteName.count > 0 {
+                    return try removePlayer(pID.count == 1 ? pID[0] : pCompleteName[0], pID.count > 1)
+                } else {
+                    return try showList("⚠️ \(user.firstName) checá que haya quedado bien eliminado")
+                }
                 
             case .Cancel:
                 return try showList(nil)
 
+            case .Cancha:
+                players.maxPlayers = (Int (callBackQueryData.replacingOccurrences(of: CallbackType.Cancha.rawValue, with: ""))!) * 2
+                return try self.showList("Hasta \(players.maxPlayers) titulares")
+                
+            case .Capitanes:
+                if (callBackQueryData.replacingOccurrences(of: CallbackType.Capitanes.rawValue, with: "")) == "Si" {
+                    players.capitanes = []
+                }
+                return try processCaptains()
+                
             default: // .Juego
                 if players.add(player: callBackUser) {
                     return try showList(nil)
@@ -86,11 +117,8 @@ public class Bot {
             case "/mebajo":
                 return try removePlayer(user , nil)
                 
-            case _ where message.lowercased().contains("/canchade"):
-                if let max = Int(message.lowercased().replacingOccurrences(of: "/canchade", with: "").trim()) {
-                    players.maxPlayers = max * 2
-                }
-                return try self.showList("Hasta \(players.maxPlayers) titulares")
+            case _ where message.lowercased().hasPrefix("/canchade"):
+                return try showCanchasOptionsKeyboard()
                 
             case "/golazo":
                 return try JSON(node: [
@@ -102,10 +130,13 @@ public class Bot {
                     ])
                 
             case _ where message.lowercased().hasPrefix("/juega "):
-                let playersArray = message.replacingOccurrences(of: "/juega ", with: "", options: .caseInsensitive, range: message.range(of: message)).trim().commaSeparatedArray()
+                let playersArray = message.replacingOccurrences(of: "/juega ",
+                                                                with: "",
+                                                                options: .caseInsensitive,
+                                                                range: message.range(of: message)).trim().commaSeparatedArray()
                 if playersArray.count > 0 {
                     for p in playersArray {
-                        let newPlayer = User(id: "falopa", firstName: p, lastName: "·", alias: p + "falopa", isCaptain: false)
+                        let newPlayer = User(id: "falopa", firstName: p, lastName: "·", alias: p + "falopa")
                         players.addGuest(player: newPlayer)
                     }
                 } else { return try showList("\(user.firstName) NO estás anotando a nadie 🤔") }
@@ -115,12 +146,13 @@ public class Bot {
                 return try showBajaKeyboard()
                 
             case "/capitanes":
-                if getCapitanes() {
-                    let blackCaptain = Capitanes[0].team.rawValue + " " + Capitanes[0].user.completeName()
-                    let whiteCaptain = Capitanes[1].team.rawValue + " " + Capitanes[1].user.completeName()
-                    return try showList("Los capitanes son:\n" + blackCaptain + "\n" + whiteCaptain)
+                return try processCaptains()
+            
+            case _ where message.lowercased().hasPrefix("/nuevoscapitanes"):
+                if setCapitanes().capitanesAsignados {
+                    return try showOneRowKeyboard(withQuestion: "¿Reasignar capitanes?", action: .Capitanes)
                 } else {
-                    return try showList("\(user.firstName), falta completar la lista de titulares para sortear *_capitanes_*")
+                    return try processCaptains()
                 }
                 
             case _ where message.lowercased().contains("iniesta"):
@@ -143,17 +175,18 @@ public class Bot {
         }
     }
     
+    func processCaptains() throws -> JSON {
+        if setCapitanes().titularesListos && !setCapitanes().capitanesAsignados  {
+            return try showList("Los capitanes son:\n" + players.showCaptains())
+        } else if setCapitanes().capitanesAsignados {
+            return try showList("\(user.firstName), los capitanes son:\n" + players.showCaptains())
+        } else {
+            return try showList("\(user.firstName), falta completar la lista de titulares para sortear *_capitanes_*")
+        }
+    }
+    
     func newList() throws -> JSON {
-
-//        let j1 = User(id: "1", firstName: "Jugador", lastName: "1", alias: "j1")
-//        let j2 = User(id: "2", firstName: "Jugador", lastName: "2", alias: "j2")
-//        let j3 = User(id: "3", firstName: "Jugador", lastName: "3", alias: "j3")
-//        let j4 = User(id: "4", firstName: "Jugador", lastName: "4", alias: "j4")
-//        let j5 = User(id: "5", firstName: "Jugador", lastName: "5", alias: "j5")
-//        let j6 = User(id: "6", firstName: "Jugador", lastName: "6", alias: "j6")
-//        let j7 = User(id: "7", firstName: "Jugador", lastName: "7", alias: "j7")
-        
-        players = Players(list: [], maxPlayers: 12)
+        players = Players(list: [], maxPlayers: 12,  capitanes:[])
         return try showList(nil)
     }
     
@@ -167,10 +200,9 @@ public class Bot {
     
     func getUser (_ request:Request) -> User {
         let u = User (id: request.data["message","from","id"]?.string ?? "",
-                      firstName: request.data["message","from","first_name"]?.string ?? "",
+                      firstName: request.data["message","from","first_name"]?.string ?? request.data["callback_query","from","first_name"]?.string ?? "",
                       lastName: request.data["message","from","last_name"]?.string ?? "",
-                      alias: request.data["message","from","username"]?.string ?? "",
-                      isCaptain: false)
+                      alias: request.data["message","from","username"]?.string ?? "")
         return u
     }
     
@@ -178,15 +210,14 @@ public class Bot {
         let u = User (id: request.data["callback_query","from","id"]?.string ?? "",
                       firstName: request.data["callback_query","from","first_name"]?.string ?? "",
                       lastName: request.data["callback_query","from","last_name"]?.string ?? "",
-                      alias: request.data["callback_query","from","username"]?.string ?? "",
-                      isCaptain: false)
+                      alias: request.data["callback_query","from","username"]?.string ?? "")
         return u
     }
     
-    var players = Players(list: [], maxPlayers: 12)
+    var players = Players(list: [], maxPlayers: 12, capitanes:[])
     
     func showList(_ extra:String?) throws -> JSON {
-        let title = players.list.count > 0 ? "Para este jueves somos *\(players.list.count)*" : "Lista vacía.\nEsperando que Luisma me de un texto para poner acá"
+        let title = players.list.count > 0 ? "Para este jueves somos *\(players.list.count)*" : "_...No somos nadie... 👨🏻‍🎤_\n\n👇🏻 ¡Anotémosnos para jugar! 👇🏻"
         let extraMessage = "\n\n*\(extra ?? "")*"
         let messageComplete = title + players.show() + extraMessage
         
@@ -268,6 +299,70 @@ public class Bot {
         return array
     }
     
+    func makeInlineKeyboardButton(text: String, data: (CallbackType, String)) throws -> JSON {
+        var json = JSON()
+        try json.set("text", text)
+        try json.set("callback_data", "\(data.0.rawValue)\(data.1)")
+        // let array = [json]
+        return json
+    }
+    
+    func showOneRowKeyboard(withQuestion question: String, action:CallbackType) throws -> JSON {
+        return try JSON(node: [
+            "method": "sendMessage",
+            "chat_id": chatID,
+            "text": question,
+            "parse_mode": "Markdown",
+            "reply_markup": try JSON(node: [
+                "inline_keyboard": try JSON(node: [
+                    try getInlineKeyboardOptions(["Si", "No"], callbakType: action)
+                    ])
+                ])
+            ])
+    }
+    
+    func showCanchasOptionsKeyboard() throws -> JSON {
+        return try JSON(node: [
+            "method": "sendMessage",
+            "chat_id": chatID,
+            "text": "¿De cuánto es la cancha?",
+            "parse_mode": "Markdown",
+            "reply_markup": try JSON(node: [
+                "inline_keyboard": try JSON(node: [
+                    try getCanchasOptions([5,6,8,11])
+                    ])
+                ])
+            ])
+    }
+    
+    func getInlineKeyboardOptions(_ options: [Any], callbakType: CallbackType) throws -> [JSON] {
+        var jsonArray = [JSON()]
+        for op in options {
+            jsonArray.append( try makeInlineKeyboardButton(text:"\(op)", data: (callbakType, "\(op)")))
+        }
+        jsonArray.remove(at: 0)
+        return jsonArray
+    }
+    
+    func getNewCaptainOptions(_ options:[String]) throws -> [JSON] {
+        var jsonArray = [JSON()]
+        for op in options {
+            jsonArray.append( try makeInlineKeyboardButton(text:"\(op)", data: (.Capitanes, "\(op)")))
+        }
+        jsonArray.remove(at: 0)
+        return jsonArray
+    }
+
+    
+    func getCanchasOptions(_ options:[Int]) throws -> [JSON] {
+        var jsonArray = [JSON()]
+        for op in options {
+            jsonArray.append( try makeInlineKeyboardButton(text:"\(op)", data: (.Cancha, "\(op)")))
+        }
+        jsonArray.remove(at: 0)
+        return jsonArray
+    }
+    
     func getPlayersJSON () throws -> [[JSON]] {
         var jsonArray = [[JSON()]]
         for p in players.list {
@@ -278,8 +373,8 @@ public class Bot {
         return jsonArray
     }
     
-    func getCapitanes() -> Bool {
-        guard players.areComplete() else { return false }
+    func setCapitanes() -> (titularesListos: Bool, capitanesAsignados:Bool) {
+        guard players.areComplete() && players.capitanes.count == 0 else { return (players.areComplete(), players.capitanes.count > 0) }
         
         let capitanNegro = players.list[Int.random(min: 0, max: players.maxPlayers - 1)]
         var capitanBlanco = players.list[Int.random(min: 0, max: players.maxPlayers - 1)]
@@ -287,13 +382,9 @@ public class Bot {
             capitanBlanco = players.list[Int.random(min: 0, max: players.maxPlayers - 1)]
         }
         
-        Capitanes = [Captain.init(team: .negro, user: capitanNegro),
+        players.capitanes = [Captain.init(team: .negro, user: capitanNegro),
                      Captain.init(team: .blanco, user: capitanBlanco)]
-        return true
-    }
-    
-    func isUserCaptain(player:User) -> Bool {
-        return Capitanes.contains(where: { $0.user.id == player.id })
+        return (true, true)
     }
 }
 
@@ -301,6 +392,7 @@ struct Players {
     
     var list : [User]
     var maxPlayers : Int
+    var capitanes = [Captain()]
     
     func areComplete () -> Bool { return list.count >= maxPlayers }
     
@@ -331,6 +423,10 @@ struct Players {
         }
         return listMessage
     }
+    
+    func showCaptains() -> String {
+        return "\(capitanes[0].team.rawValue) \(capitanes[0].user.firstName) \n\(capitanes[1].team.rawValue) \(capitanes[1].user.firstName)"
+    }
 }
 
 struct User {
@@ -338,7 +434,6 @@ struct User {
     var firstName : String = ""
     var lastName : String = ""
     var alias:String = ""
-    var isCaptain = false
     
     public func completeName() -> String { return "\(firstName) " + " \(lastName)" }
 }
@@ -347,6 +442,8 @@ enum CallbackType: String {
     case Juego = "juego"
     case Cancel = "cancel"
     case Baja = "baja"
+    case Cancha = "cancha"
+    case Capitanes = "capitanes"
 }
 
 enum Team : String {
