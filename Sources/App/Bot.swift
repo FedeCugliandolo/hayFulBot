@@ -69,11 +69,11 @@ public class Bot {
             switch callBackQueryDataType {
             
             case .Baja:
-                let userData = callBackQueryData.commaSeparatedArray() // 0.baja , 1.ID, 2.name
+                let userData = callBackQueryData.commaSeparatedArray() // 0.baja , 1.ID, 2.name, 3.user.name
                 let pID = players.list.filter { $0.id == userData[1] }
                 let pCompleteName = players.list.filter { $0.completeName() == userData[2] }
                 if pID.count == 1 || pCompleteName.count > 0 {
-                    return try removePlayer(pID.count == 1 ? pID[0] : pCompleteName[0], pID.count > 1)
+                    return try removePlayer(from: userData[3], to: pID.count == 1 ? pID[0] : pCompleteName[0], pID.count > 1)
                 } else {
                     return try showList("⚠️ \(user.firstName) checá que haya quedado bien eliminado")
                 }
@@ -130,7 +130,7 @@ public class Bot {
                 return try addPlayers()
                 
             case _ where message.lowercased().hasPrefix("/mebajo"):
-                return try removePlayer(user , nil)
+                return try removePlayer(from: user.firstName, to: user, nil)
                 
             case _ where message.lowercased().hasPrefix("/baja"):
                 return try showBajaKeyboard()
@@ -199,7 +199,7 @@ public class Bot {
     }
     
     func processCaptains() throws -> JSON {
-        if setCapitanes() || players.capitanes.count == 2  {
+        if players.setCapitanes() || players.capitanes.count == 2  {
             return try showList("\(user.firstName), los capitanes son:\n\n" + players.showCaptains())
         } else if players.capitanes.count == 1 {
             return try askForNewCaptains()
@@ -213,9 +213,11 @@ public class Bot {
         return try showList(nil)
     }
     
-    func removePlayer(_ player:User, _ byName: Bool?) throws -> JSON {
+    func removePlayer(from userName: String, to player:User, _ byName: Bool?) throws -> JSON {
         if players.remove(player: player, byName) {
-            return try showList("‼️ Se bajó \(player.completeName())")
+            
+            let bajaMessage = userName == player.firstName ? "‼️ Se bajó \(player.completeName())" : "‼️ \(userName) bajó a \(player.completeName())"
+            return try showList(bajaMessage)
         } else {
             return try showList("🤦🏻‍♂️ No estás anotado, \(player.firstName)\n¡Anotate! 👇🏻")
         }
@@ -307,7 +309,7 @@ public class Bot {
     func makeBajaButton(player:User) throws -> [JSON] {
         var json = JSON()
         try json.set("text", player.completeName())
-        try json.set("callback_data", "baja,"+"\(player.id),"+"\(player.completeName())")
+        try json.set("callback_data", "baja,\(player.id),\(player.completeName()),\(user.firstName)")
         let array = [json]
         return array
     }
@@ -359,20 +361,6 @@ public class Bot {
         jsonArray.insert(try makeCancelButton(nil), at: 0)
         return jsonArray
     }
-    
-    func setCapitanes() -> Bool {
-        guard players.areComplete() && players.capitanes.count == 0 else { return false }
-        
-        let capitanNegro = players.list[Int.random(min: 0, max: players.maxPlayers - 1)]
-        var capitanBlanco = players.list[Int.random(min: 0, max: players.maxPlayers - 1)]
-        while players.list.count > 1 && capitanNegro.alias == capitanBlanco.alias {
-            capitanBlanco = players.list[Int.random(min: 0, max: players.maxPlayers - 1)]
-        }
-        
-        players.capitanes = [Captain.init(team: .negro, user: capitanNegro),
-                     Captain.init(team: .blanco, user: capitanBlanco)]
-        return true
-    }
 }
 
 struct Players {
@@ -412,6 +400,20 @@ struct Players {
         return listMessage
     }
     
+    mutating func setCapitanes() -> Bool {
+        guard areComplete() && capitanes.count == 0 else { return false }
+        
+        let capitanNegro = list[Int.random(min: 0, max: maxPlayers - 1)]
+        var capitanBlanco = list[Int.random(min: 0, max: maxPlayers - 1)]
+        while list.count > 1 && capitanNegro.alias == capitanBlanco.alias {
+            capitanBlanco = list[Int.random(min: 0, max: maxPlayers - 1)]
+        }
+        
+        capitanes = [Captain.init(team: .negro, user: capitanNegro),
+                             Captain.init(team: .blanco, user: capitanBlanco)]
+        return true
+    }
+
     func showCaptains() -> String {
         return "\(capitanes[0].team.rawValue) \(capitanes[0].user.firstName) \n\(capitanes[1].team.rawValue) \(capitanes[1].user.firstName)"
     }
