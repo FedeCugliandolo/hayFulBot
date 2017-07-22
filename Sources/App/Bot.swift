@@ -86,7 +86,8 @@ public class Bot {
                 return try self.showList("Hasta \(players.maxPlayers) titulares")
                 
             case .Capitanes:
-                if (callBackQueryData.replacingOccurrences(of: CallbackType.Capitanes.rawValue, with: "")) == "Si" {
+                let userData = callBackQueryData.commaSeparatedArray() // 0.capitanes, 1.answer
+                if userData[1] == "Si" {
                     players.capitanes = []
                     return try processCaptains()
                 } else {
@@ -119,9 +120,6 @@ public class Bot {
                 }
                 return try showOneRowKeyboard(withQuestion: "\(user.firstName), estás por borrar toda la lista...\n\n*⚠️⚠️ ¿¿Estás seguro?? ⚠️⚠️*", options: ["Si", "No"], action: .NuevaLista)
                 
-            case _ where message.lowercased().hasPrefix("/mebajo"):
-                return try removePlayer(user , nil)
-                
             case _ where message.lowercased().hasPrefix("/canchade"):
                 return try showOneRowKeyboard(withQuestion: "¿De cuánto es la cancha?", options: [5,6,8,11], action: .Cancha)
                 
@@ -130,6 +128,9 @@ public class Bot {
                 
             case _ where message.lowercased().hasPrefix("/juega "):
                 return try addPlayers()
+                
+            case _ where message.lowercased().hasPrefix("/mebajo"):
+                return try removePlayer(user , nil)
                 
             case _ where message.lowercased().hasPrefix("/baja"):
                 return try showBajaKeyboard()
