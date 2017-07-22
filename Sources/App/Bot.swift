@@ -57,6 +57,9 @@ public class Bot {
         case _ where callBackQueryData.contains(CallbackType.Capitanes.rawValue):
             callBackQueryDataType = .Capitanes
             
+        case _ where callBackQueryData.contains(CallbackType.NuevaLista.rawValue):
+            callBackQueryDataType = .NuevaLista
+            
         default:
             callBackQueryDataType = .Juego
         }
@@ -85,8 +88,15 @@ public class Bot {
             case .Capitanes:
                 if (callBackQueryData.replacingOccurrences(of: CallbackType.Capitanes.rawValue, with: "")) == "Si" {
                     players.capitanes = []
+                    return try processCaptains()
+                } else {
+                    return try showList(nil)
                 }
-                return try processCaptains()
+                
+            case .NuevaLista:
+                let userData = callBackQueryData.commaSeparatedArray() // 0.Si , 1.nuevalista
+                guard userData[1] == "Si" else { return try showList(nil) }
+                return try newList()
                 
             default: // .Juego
                 if players.add(player: callBackUser) {
@@ -100,84 +110,98 @@ public class Bot {
             
             switch message {
                 
-            case "/hola":
-                return try JSON(node: [
-                    "method": "sendMessage",
-                    "chat_id": chatID,
-                    "text": "Hola @\(user.alias)! Bienvenido a HayFulBot =)",
-                    ])
-                
-            case "/lista" , "/lista@hayfulbot":
+            case _ where message.lowercased().hasPrefix("/lista"):
                 return try showList(nil)
                 
-            case "/nuevalista":
-                return try newList()
+            case _ where message.lowercased().hasPrefix("/nuevalista"):
+                guard players.list.count > 0 else {
+                    return try newList()
+                }
+                return try showOneRowKeyboard(withQuestion: "\(user.firstName), estás por borrar toda la lista...\n\n*⚠️⚠️ ¿¿Estás seguro?? ⚠️⚠️*", options: ["Si", "No"], action: .NuevaLista)
                 
-            case "/mebajo":
+            case _ where message.lowercased().hasPrefix("/mebajo"):
                 return try removePlayer(user , nil)
                 
             case _ where message.lowercased().hasPrefix("/canchade"):
                 return try showOneRowKeyboard(withQuestion: "¿De cuánto es la cancha?", options: [5,6,8,11], action: .Cancha)
                 
-            case "/golazo":
-                return try JSON(node: [
-                    "method": "sendDocument",
-                    "chat_id": chatID,
-                    "caption": "¿¿Pidieron a Iniesta??",
-                    "document": "CgADAQADDQADC3xwR9T4eWaEHnjMAg",
-                    "disable_notification": true,
-                    ])
+            case let command where message.lowercased().hasPrefix("/golazo"):
+                return try sendGIFsFor(command)
                 
             case _ where message.lowercased().hasPrefix("/juega "):
-                let playersArray = message.replacingOccurrences(of: "/juega ",
-                                                                with: "",
-                                                                options: .caseInsensitive,
-                                                                range: message.range(of: message)).trim().commaSeparatedArray()
-                if playersArray.count > 0 {
-                    for p in playersArray {
-                        guard p.trim() != "" else {continue}
-                        let newPlayer = User(id: "falopa", firstName: p, lastName: "·", alias: p + "Guest")
-                        players.addGuest(player: newPlayer)
-                    }
-                } else { return try showList("\(user.firstName) NO estás anotando a nadie 🤔") }
-                return try showList("Gracias \(user.firstName) por agregar jugadores 🙌🏻")
+                return try addPlayers()
                 
-            case "/baja":
+            case _ where message.lowercased().hasPrefix("/baja"):
                 return try showBajaKeyboard()
                 
-            case "/capitanes":
+            case _ where message.lowercased().hasPrefix("/capitanes"):
                 return try processCaptains()
             
             case _ where message.lowercased().hasPrefix("/nuevoscapitanes"):
                 if players.capitanes.count > 0 {
-                    return try showOneRowKeyboard(withQuestion: "Capitanes acutales:\n\(players.showCaptains())\n\n¿Reasignar capitanes?", options: ["Si", "No"], action: .Capitanes)
+                    return try askForNewCaptains()
                 } else {
                     return try processCaptains()
                 }
                 
-            case _ where message.lowercased().contains("iniesta"):
-                return try JSON(node: [
-                    "method": "sendDocument",
-                    "chat_id": chatID,
-                    "caption": "¿¿Pidieron a Iniesta??",
-                    "document": "CgADAQADZwwAAkeJSwABykG1j0MYfQoC",
-                    "disable_notification": true,
-                    ])
-            
+            case let commnad where message.lowercased().contains("iniesta"):
+                return try sendGIFsFor(commnad)
+                
             default:
                 if message.hasPrefix("/") {
-                    return try showList("\(user.firstName), ese comado no existe...")
+                    return try showList("⚠️ \(user.firstName), ese comado no existe...")
                 } else {
-                    return try JSON(node: [
-                        "message": "Está vacío"])
+                    return try doNothing()
                 }
             }
         }
     }
     
+    func addPlayers() throws -> JSON {
+        let playersArray = message.replacingOccurrences(of: "/juega ",
+                                                        with: "",
+                                                        options: .caseInsensitive,
+                                                        range: message.range(of: message)).trim().commaSeparatedArray()
+        if playersArray.count > 0 {
+            for p in playersArray {
+                guard p.trim() != "" else {continue}
+                let newPlayer = User(id: "falopa", firstName: p, lastName: "·", alias: p + "Guest")
+                players.addGuest(player: newPlayer)
+            }
+        } else { return try showList("\(user.firstName) NO estás anotando a nadie 🤔") }
+        return try showList("Gracias \(user.firstName) por agregar jugadores 🙌🏻")
+    }
+    
+    func doNothing() throws -> JSON {
+        return try JSON(node: [
+            "message": "Está vacío"]
+        )
+    }
+    
+    func sendGIFsFor(_ command: String) throws -> JSON {
+        let GIFs = [(key: "iniesta", caption: "¿¿Pidieron a Iniesta??", file: "CgADAQADZwwAAkeJSwABykG1j0MYfQoC"),
+                    (key: "golazo", caption: "Iniesta definiendo!", file: "CgADAQADDQADC3xwR9T4eWaEHnjMAg")]
+        let idx = GIFs.index(where: { command.lowercased().contains($0.key) })
+        
+        guard idx != nil else { return try doNothing() }
+        return try JSON(node: [
+            "method": "sendDocument",
+            "chat_id": chatID,
+            "caption": GIFs[idx!].caption,
+            "document": GIFs[idx!].file,
+            "disable_notification": true,
+            ])
+    }
+    
+    func askForNewCaptains() throws -> JSON {
+        return try showOneRowKeyboard(withQuestion: "Capitanes actuales:\n\n\(players.showCaptains())\n\n¿Reasignar capitanes?", options: ["Si", "No"], action: .Capitanes)
+    }
+    
     func processCaptains() throws -> JSON {
-        if setCapitanes() || players.capitanes.count > 0  {
-            return try showList("\(user.firstName), los capitanes son:\n" + players.showCaptains())
+        if setCapitanes() || players.capitanes.count == 2  {
+            return try showList("\(user.firstName), los capitanes son:\n\n" + players.showCaptains())
+        } else if players.capitanes.count == 1 {
+            return try askForNewCaptains()
         } else {
             return try showList("\(user.firstName), falta completar la lista de titulares para sortear *_capitanes_*")
         }
@@ -321,7 +345,7 @@ public class Bot {
     func makeInlineKeyboardButton(text: String, data: (CallbackType, String)) throws -> JSON {
         var json = JSON()
         try json.set("text", text)
-        try json.set("callback_data", "\(data.0.rawValue)\(data.1)")
+        try json.set("callback_data", "\(data.0.rawValue),\(data.1)")
         return json
     }
     
@@ -381,13 +405,21 @@ struct Players {
             if (index + 1) == self.maxPlayers + 1 {
                 listMessage.append("\n\n_Pueden ir a filmar:_\n")
             }
-            listMessage.append("\n" + " \(index + 1). " + player.firstName + " " + player.lastName)
+            let captainTeam =  isCaptain(player).answer ? "©️\(isCaptain(player).team)": ""
+            listMessage.append("\n \(index + 1). \(player.firstName) \(player.lastName) \(captainTeam)")
         }
         return listMessage
     }
     
     func showCaptains() -> String {
         return "\(capitanes[0].team.rawValue) \(capitanes[0].user.firstName) \n\(capitanes[1].team.rawValue) \(capitanes[1].user.firstName)"
+    }
+    
+    func isCaptain(_ player: User) -> (answer: Bool, team: Team.RawValue) {
+        guard capitanes.count > 0 else { return (false, Team.none.rawValue) }
+        let cap = capitanes.filter({ $0.user.completeName() == player.completeName() })
+        return (capitanes.contains(where: { $0.user.completeName() == player.completeName()}),
+                cap.count > 0 ? cap[0].team.rawValue : Team.none.rawValue )
     }
 }
 
@@ -406,6 +438,7 @@ enum CallbackType: String {
     case Baja = "baja"
     case Cancha = "cancha"
     case Capitanes = "capitanes"
+    case NuevaLista = "nuevalista"
 }
 
 enum Team : String {
