@@ -135,6 +135,7 @@ public class Bot {
                                                                 range: message.range(of: message)).trim().commaSeparatedArray()
                 if playersArray.count > 0 {
                     for p in playersArray {
+                        guard p.trim() != "" else {continue}
                         let newPlayer = User(id: "falopa", firstName: p, lastName: "·", alias: p + "Guest")
                         players.addGuest(player: newPlayer)
                     }
