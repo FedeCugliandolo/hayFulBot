@@ -121,7 +121,7 @@ public class Bot {
                 return try showOneRowKeyboard(withQuestion: "\(user.firstName), estás por borrar toda la lista...\n\n*⚠️⚠️ ¿¿Estás seguro?? ⚠️⚠️*", options: ["Si", "No"], action: .NuevaLista)
                 
             case _ where message.lowercased().hasPrefix("/canchade"):
-                return try showOneRowKeyboard(withQuestion: "¿De cuánto es la cancha?", options: [5,6,8,11], action: .Cancha)
+                return try showOneRowKeyboard(withQuestion: "¿Cantidad de jugadores por equipo?", options: [5,6,8,11], action: .Cancha)
                 
             case let command where message.lowercased().hasPrefix("/golazo"):
                 return try sendGIFsFor(command)
@@ -181,7 +181,7 @@ public class Bot {
     
     func sendGIFsFor(_ command: String) throws -> JSON {
         let GIFs = [(key: "iniesta", caption: "¿¿Pidieron a Iniesta??", file: "CgADAQADZwwAAkeJSwABykG1j0MYfQoC"),
-                    (key: "golazo", caption: "Iniesta definiendo!", file: "CgADAQADDQADC3xwR9T4eWaEHnjMAg")]
+                    (key: "golazo", caption: "¡Golazo de Iniesta!", file: "CgADAQADDQADC3xwR9T4eWaEHnjMAg")]
         let idx = GIFs.index(where: { command.lowercased().contains($0.key) })
         
         guard idx != nil else { return try doNothing() }
