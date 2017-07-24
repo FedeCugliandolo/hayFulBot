@@ -1,1 +1,1 @@
-web: Executable --env=production --workdir="./"
+web: hayfulbot --env=production --workdir="./"
