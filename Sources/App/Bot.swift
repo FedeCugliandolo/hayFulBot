@@ -180,7 +180,7 @@ public class Bot {
     }
     
     func sendGIFsFor(_ command: String) throws -> JSON {
-        let GIFs = [(key: "iniesta", caption: "¿¿Pidieron a Iniesta??", file: "CgADAQADZwwAAkeJSwABykG1j0MYfQoC"),
+        let GIFs = [(key: "iniesta", caption: "¿Pidieron a Iniesta?", file: "CgADAQADZwwAAkeJSwABykG1j0MYfQoC"),
                     (key: "golazo", caption: "¡Golazo de Iniesta!", file: "CgADAQADDQADC3xwR9T4eWaEHnjMAg")]
         let idx = GIFs.index(where: { command.lowercased().contains($0.key) })
         
