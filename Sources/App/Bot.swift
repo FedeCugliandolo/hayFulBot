@@ -121,7 +121,7 @@ public class Bot {
                 return try showOneRowKeyboard(withQuestion: "\(user.firstName), estás por borrar toda la lista...\n\n*⚠️⚠️ ¿¿Estás seguro?? ⚠️⚠️*", options: ["Si", "No"], action: .NuevaLista)
                 
             case _ where message.lowercased().hasPrefix("/canchade"):
-                return try showOneRowKeyboard(withQuestion: "¿De cuánto es la cancha?", options: [5,6,8,11], action: .Cancha)
+                return try showOneRowKeyboard(withQuestion: "¿Cantidad de jugadores por equipo?", options: [5,6,8,11], action: .Cancha)
                 
             case let command where message.lowercased().hasPrefix("/golazo"):
                 return try sendGIFsFor(command)
