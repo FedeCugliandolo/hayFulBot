@@ -140,7 +140,7 @@ public class Bot {
             
             case _ where message.lowercased().hasPrefix("/nuevoscapitanes"):
                 if players.capitanes.count > 0 {
-                    return try askForNewCaptains()
+                    return try askForNewCaptains(nil)
                 } else {
                     return try processCaptains()
                 }
@@ -194,15 +194,14 @@ public class Bot {
             ])
     }
     
-    func askForNewCaptains() throws -> JSON {
-        return try showOneRowKeyboard(withQuestion: "Capitanes actuales:\n\n\(players.showCaptains())\n\n¿Reasignar capitanes?", options: ["Si", "No"], action: .Capitanes)
+    func askForNewCaptains(_ question: String?) throws -> JSON {
+        let questionMessage = question ?? "Capitanes actuales:\n\n\(players.showCaptains())\n\n¿Reasignar capitanes?"
+        return try showOneRowKeyboard(withQuestion: questionMessage, options: ["Si", "No"], action: .Capitanes)
     }
     
     func processCaptains() throws -> JSON {
         if players.setCapitanes() || players.capitanes.count == 2  {
             return try showList("\(user.firstName), los capitanes son:\n\n" + players.showCaptains())
-        } else if players.capitanes.count == 1 {
-            return try askForNewCaptains()
         } else {
             return try showList("\(user.firstName), falta completar la lista de titulares para sortear *_capitanes_*")
         }
@@ -214,10 +213,27 @@ public class Bot {
     }
     
     func removePlayer(from userName: String, to player:User, _ byName: Bool?) throws -> JSON {
+        let indexBaja = players.list.index(where: { $0.completeName() == player.completeName() })
         if players.remove(player: player, byName) {
             
-            let bajaMessage = userName == player.firstName ? "‼️ Se bajó \(player.completeName())" : "‼️ \(userName) bajó a \(player.completeName())"
+            var bajaMessage = ""
+            
+            // check for suplente
+            if players.list.count >= players.maxPlayers, indexBaja! <= players.maxPlayers - 1 {
+                let firstSuplente = players.list[players.maxPlayers - 1]
+                bajaMessage.append(firstSuplente.alias.hasSuffix("Guest") || firstSuplente.alias == "" ?  "Avisenlé a \(firstSuplente.firstName) que juega...\n\n"
+                    : "*@\(firstSuplente.alias)* confirmá si podés jugar.\nEstás activo, perrro!.\n\n")
+            }
+            
+            // check for captain
+            if players.isCaptain(player).answer {
+                players.capitanes = []
+                bajaMessage.append("¡Se bajó un Capitán! \nA reasignarlos 👨🏿‍✈️👨🏻‍✈️\n\n")
+            
+            }
+            bajaMessage.append(userName == player.firstName ? "‼️ Se bajó \(player.completeName())" : "‼️ \(userName) bajó a \(player.completeName())")
             return try showList(bajaMessage)
+            
         } else {
             return try showList("🤦🏻‍♂️ No estás anotado, \(player.firstName)\n¡Anotate! 👇🏻")
         }
