@@ -148,6 +148,12 @@ public class Bot {
             case let commnad where message.lowercased().contains("iniesta"):
                 return try sendGIFsFor(commnad)
                 
+            case _ where message.lowercased().hasPrefix("/messageall"):
+                return try sendMessage(chatID)
+                
+            case _ where message.lowercased().hasPrefix("/messagehere"):
+                return try sendMessage(chatID)
+                
             default:
                 if message.hasPrefix("/") {
                     return try showList("⚠️ \(user.firstName), ese comado no existe...")
@@ -156,6 +162,20 @@ public class Bot {
                 }
             }
         }
+    }
+    
+    func sendMessage(_ chatID: String) throws -> JSON {
+        let text = message.replacingOccurrences(of: "/messageall ",
+                                                        with: "",
+                                                        options: .caseInsensitive,
+                                                        range: message.range(of: message)).trim()
+
+        return try JSON(node: [
+            "method": "sendMessage",
+            "chat_id": chatID,
+            "text": text,
+            "parse_mode": "Markdown"
+        ])
     }
     
     func addPlayers() throws -> JSON {

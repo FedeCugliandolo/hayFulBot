@@ -25,5 +25,4 @@ let token = drop.config["app", "secret"]?.string ?? ""
 let bot = Bot(token: token, droplet: drop)
 try drop.setup(bot)
 
-
 try drop.run()
