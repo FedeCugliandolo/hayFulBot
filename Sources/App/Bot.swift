@@ -13,7 +13,7 @@ public class Bot {
     var token: String
     var message = ""
     var user = User()
-    var chatID  = ""
+    var chatID  = 0
     var players = Players(list: [], maxPlayers: 12, capitanes:[])
     
     // callback TODO: struct for callbacks?
@@ -34,7 +34,10 @@ public class Bot {
         
         message = request.data["message", "text"]?.string ?? ""
         user = getUser(request)
-        chatID = request.data["message", "chat", "id"]?.string ?? ""
+        chatID = request.data["message", "chat", "id"]?.int ?? 0
+        
+        // sólo para los siguientes chats por ahora: 
+        guard  chatID == -1001100231719 || chatID == 4950343 else { return try muyPronto() }
         
         callBackUser = getCallBackUser(request)
         callBackQueryText = request.data["callback_query","message", "text"]?.string ?? ""
@@ -164,7 +167,7 @@ public class Bot {
         }
     }
     
-    func sendMessage(_ chatID: String) throws -> JSON {
+    func sendMessage(_ chatID: Int) throws -> JSON {
         let text = message.replacingOccurrences(of: "/messageall ",
                                                         with: "",
                                                         options: .caseInsensitive,
@@ -198,6 +201,15 @@ public class Bot {
             "message": "Está vacío"]
         )
     }
+    
+    func muyPronto() throws -> JSON {
+        return try JSON(node: [
+            "method": "sendMessage",
+            "chat_id": chatID,
+            "text": "HayFulBot estará activo muy pronto para usarlo públicamente... ⚽️",
+            ])
+    }
+
     
     func sendGIFsFor(_ command: String) throws -> JSON {
         let GIFs = [(key: "iniesta", caption: "¿Pidieron a Iniesta?", file: "CgADAQADZwwAAkeJSwABykG1j0MYfQoC"),
