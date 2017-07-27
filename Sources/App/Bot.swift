@@ -13,7 +13,7 @@ public class Bot {
     var token: String
     var message = ""
     var user = User()
-    var chatID  = 0
+    var chatID = 0
     var players = Players(list: [], maxPlayers: 12, capitanes:[])
     
     // callback TODO: struct for callbacks?
@@ -34,7 +34,7 @@ public class Bot {
         
         message = request.data["message", "text"]?.string ?? ""
         user = getUser(request)
-        chatID = request.data["message", "chat", "id"]?.int ?? 0
+        chatID = request.data["message", "chat", "id"]?.int ?? request.data["callback_query", "message", "chat","id"]?.int ?? 0
         
         // sólo para los siguientes chats por ahora: 
         guard  chatID == -1001100231719 || chatID == 4950343 else { return try muyPronto() }
