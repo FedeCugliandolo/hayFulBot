@@ -14,7 +14,7 @@ public class Bot {
     var message = ""
     var user = User()
     var chatID = 0
-    var players = Players(list: [], maxPlayers: 12, capitanes:[])
+    var players = Players(chatID: 0, list: [], maxPlayers: 12, capitanes:[])
     
     // callback TODO: struct for callbacks?
     var callBackQueryText = ""
@@ -35,9 +35,7 @@ public class Bot {
         message = request.data["message", "text"]?.string ?? ""
         user = getUser(request)
         chatID = request.data["message", "chat", "id"]?.int ?? request.data["callback_query", "message", "chat","id"]?.int ?? 0
-        
-        // sólo para los siguientes chats por ahora: 
-        guard  chatID == -1001100231719 || chatID == 4950343 else { return try muyPronto() }
+        players.chatID = chatID
         
         callBackUser = getCallBackUser(request)
         callBackQueryText = request.data["callback_query","message", "text"]?.string ?? ""
@@ -47,7 +45,7 @@ public class Bot {
         callBackQueryData = request.data["callback_query","data"]?.string ?? ""
         
         switch callBackQueryData {
-        
+            
         case _ where callBackQueryData.contains(CallbackType.Baja.rawValue):
             callBackQueryDataType = .Baja
             
@@ -70,7 +68,7 @@ public class Bot {
         if !callBackQueryText.isEmpty { // callback Query
             
             switch callBackQueryDataType {
-            
+                
             case .Baja:
                 let userData = callBackQueryData.commaSeparatedArray() // 0.baja , 1.ID, 2.name, 3.user.name
                 let pID = players.list.filter { $0.id == userData[1] }
@@ -83,9 +81,10 @@ public class Bot {
                 
             case .Cancel:
                 return try showList(nil)
-
+                
             case .Cancha:
-                players.maxPlayers = (Int (callBackQueryData.replacingOccurrences(of: CallbackType.Cancha.rawValue, with: ""))!) * 2
+                let callBackData = callBackQueryData.commaSeparatedArray() // 0.cancha 1.maxPlayers
+                players.maxPlayers = (Int(callBackData[1])!) * 2
                 return try self.showList("Hasta \(players.maxPlayers) titulares")
                 
             case .Capitanes:
@@ -140,7 +139,7 @@ public class Bot {
                 
             case _ where message.lowercased().hasPrefix("/capitanes"):
                 return try processCaptains()
-            
+                
             case _ where message.lowercased().hasPrefix("/nuevoscapitanes"):
                 if players.capitanes.count > 0 {
                     return try askForNewCaptains(nil)
@@ -169,16 +168,16 @@ public class Bot {
     
     func sendMessage(_ chatID: Int) throws -> JSON {
         let text = message.replacingOccurrences(of: "/messageall ",
-                                                        with: "",
-                                                        options: .caseInsensitive,
-                                                        range: message.range(of: message)).trim()
-
+                                                with: "",
+                                                options: .caseInsensitive,
+                                                range: message.range(of: message)).trim()
+        
         return try JSON(node: [
             "method": "sendMessage",
             "chat_id": chatID,
             "text": text,
             "parse_mode": "Markdown"
-        ])
+            ])
     }
     
     func addPlayers() throws -> JSON {
@@ -209,7 +208,7 @@ public class Bot {
             "text": "HayFulBot estará activo muy pronto para usarlo públicamente... ⚽️",
             ])
     }
-
+    
     
     func sendGIFsFor(_ command: String) throws -> JSON {
         let GIFs = [(key: "iniesta", caption: "¿Pidieron a Iniesta?", file: "CgADAQADZwwAAkeJSwABykG1j0MYfQoC"),
@@ -240,7 +239,7 @@ public class Bot {
     }
     
     func newList() throws -> JSON {
-        players = Players(list: [], maxPlayers: 12,  capitanes:[])
+        players.list = []
         return try showList(nil)
     }
     
@@ -261,7 +260,7 @@ public class Bot {
             if players.isCaptain(player).answer {
                 players.capitanes = []
                 bajaMessage.append("¡Se bajó un Capitán! \nA reasignarlos 👨🏿‍✈️👨🏻‍✈️\n\n")
-            
+                
             }
             bajaMessage.append(userName == player.firstName ? "‼️ Se bajó \(player.completeName())" : "‼️ \(userName) bajó a \(player.completeName())")
             return try showList(bajaMessage)
@@ -411,11 +410,49 @@ public class Bot {
     }
 }
 
+struct Data {
+    var lists: [Int : [User]]
+    var captains: [Int : [Captain]]
+    var maxPlayers: [Int : Int]
+}
+
 struct Players {
     
-    var list : [User]
-    var maxPlayers : Int
-    var capitanes = [Captain()]
+    var list: [User] {
+        get {
+            return data.lists[chatID] ?? []
+        }
+        set (newList) {
+            data.lists[chatID] = newList
+        }
+    }
+    
+    var maxPlayers: Int {
+        get {
+            return data.maxPlayers[chatID] ?? 10
+        }
+        set {
+            data.maxPlayers[chatID] = newValue
+        }
+    }
+    
+    var capitanes : [Captain] {
+        get {
+            return data.captains[chatID] ?? []
+        }
+        set {
+            data.captains[chatID] = newValue
+        }
+    }
+    
+    var chatID: Int
+    
+    private var data : Data
+    
+    init(chatID: Int, list: [User], maxPlayers: Int, capitanes : [Captain] = [Captain()]) {
+        self.chatID = chatID
+        self.data = Data(lists: [chatID : list], captains: [chatID : capitanes], maxPlayers: [chatID : maxPlayers])
+    }
     
     func areComplete () -> Bool { return list.count >= maxPlayers }
     
@@ -458,10 +495,10 @@ struct Players {
         }
         
         capitanes = [Captain.init(team: .negro, user: capitanNegro),
-                             Captain.init(team: .blanco, user: capitanBlanco)]
+                     Captain.init(team: .blanco, user: capitanBlanco)]
         return true
     }
-
+    
     func showCaptains() -> String {
         return "\(capitanes[0].team.rawValue) \(capitanes[0].user.firstName) \n\(capitanes[1].team.rawValue) \(capitanes[1].user.firstName)"
     }
